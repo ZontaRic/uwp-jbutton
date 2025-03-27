@@ -1,34 +1,32 @@
 package javaswingdev.uwp;
 
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Point;
-import java.awt.RadialGradientPaint;
-import java.awt.Rectangle;
-import java.awt.RenderingHints;
+// Original: uwp-jbutton https://github.com/DJ-Raven/uwp-jbutton (DJ-Raben)
+// Changed 03.2025: Ric Zonta
+// Problem with the Library TimingFramework-0.55.jar
+// When starting a process with processbuilder and waiting for the termination of the forked process (.waitfor()), the timers go berserk and create a high CPU-procentage
+// Therefore we use javax.swing.Timer to eliminate the problem
+
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
-import javax.swing.JButton;
-import javax.swing.SwingUtilities;
-import org.jdesktop.animation.timing.Animator;
-import org.jdesktop.animation.timing.TimingTargetAdapter;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import javax.swing.*;
 
 public class UWPButton extends JButton {
 
-    private Animator animatorOver;
-    private Animator animatorPress;
-    private float animateOver;
-    private float animatePress;
-    private boolean mouseOver;
-    private boolean mousePress;
+    private float animateOver = 0;
+    private float animatePress = 0;
+    private boolean mouseOver = false;
+    private boolean mousePress = false;
     private int borderSize = 2;
     private Point mousePoint;
     private Color selectedColor = new Color(200, 200, 200);
     private Color effectColor = new Color(255, 255, 255);
+    private Timer overTimer;
+    private Timer pressTimer;
 
     public UWPButton() {
         init();
@@ -38,7 +36,8 @@ public class UWPButton extends JButton {
         setContentAreaFilled(false);
         setBackground(new Color(52, 153, 252));
         setForeground(Color.WHITE);
-        initAnimator();
+        initTimers();
+        
         MouseAdapter mouseEvent = new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
@@ -63,8 +62,8 @@ public class UWPButton extends JButton {
             @Override
             public void mouseReleased(MouseEvent me) {
                 if (SwingUtilities.isLeftMouseButton(me)) {
-                    startAnimationPress();
                     mousePress = false;
+                    startAnimationPress();
                 }
             }
 
@@ -76,52 +75,35 @@ public class UWPButton extends JButton {
         };
         addMouseListener(mouseEvent);
         addMouseMotionListener(mouseEvent);
-
     }
 
-    private void initAnimator() {
-        animatorOver = new Animator(250, new TimingTargetAdapter() {
-            @Override
-            public void timingEvent(float fraction) {
-                animateOver = mouseOver ? fraction : 1f - fraction;
-                repaint();
+    private void initTimers() {
+        overTimer = createAnimationTimer(() -> animateOver, f -> animateOver = f);
+        pressTimer = createAnimationTimer(() -> animatePress, f -> animatePress = f);
+    }
+
+    private Timer createAnimationTimer(Supplier<Float> getter, Consumer<Float> setter) {
+        return new Timer(15, e -> {
+            float fraction = getter.get();
+            if (mouseOver || mousePress) {
+                fraction = Math.min(fraction + 0.05f, 1f);
+            } else {
+                fraction = Math.max(fraction - 0.05f, 0f);
+            }
+            setter.accept(fraction);
+            repaint();
+            if (fraction == 0 || fraction == 1) {
+                ((Timer) e.getSource()).stop();
             }
         });
-        animatorPress = new Animator(250, new TimingTargetAdapter() {
-            @Override
-            public void timingEvent(float fraction) {
-                animatePress = mousePress ? fraction : 1f - fraction;
-                repaint();
-            }
-        });
-        animatorOver.setResolution(0);
-        animatorOver.setAcceleration(.5f);
-        animatorOver.setDeceleration(.5f);
-        animatorPress.setResolution(0);
-        animatorPress.setAcceleration(.5f);
-        animatorPress.setDeceleration(.5f);
     }
 
     private void startAnimationOver() {
-        if (animatorOver.isRunning()) {
-            float f = animatorOver.getTimingFraction();
-            animatorOver.stop();
-            animatorOver.setStartFraction(1f - f);
-        } else {
-            animatorOver.setStartFraction(0);
-        }
-        animatorOver.start();
+        overTimer.start();
     }
 
     private void startAnimationPress() {
-        if (animatorPress.isRunning()) {
-            float f = animatorPress.getTimingFraction();
-            animatorPress.stop();
-            animatorPress.setStartFraction(1f - f);
-        } else {
-            animatorPress.setStartFraction(0);
-        }
-        animatorPress.start();
+        pressTimer.start();
     }
 
     @Override
@@ -133,13 +115,16 @@ public class UWPButton extends JButton {
         int width = getWidth();
         int height = getHeight();
         Rectangle rec = new Rectangle(x, y, width, height);
+
         if (isEnabled()) {
             g2.setColor(getBackground());
             g2.fill(rec);
+            
             if (animateOver > 0 || animatePress > 0) {
                 Area area = new Area(rec);
                 Rectangle rec_in = new Rectangle(x + borderSize, y + borderSize, width - borderSize * 2, height - borderSize * 2);
                 area.subtract(new Area(rec_in));
+                
                 if (animateOver > 0 && mousePoint != null) {
                     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, animateOver));
                     g2.setPaint(getGradient(mousePoint, 255, 1.5f));
@@ -147,6 +132,7 @@ public class UWPButton extends JButton {
                     g2.setPaint(getGradient(mousePoint, 70, 0.3f));
                     g2.fill(rec_in);
                 }
+                
                 if (animatePress > 0) {
                     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, animatePress));
                     g2.setColor(selectedColor);
