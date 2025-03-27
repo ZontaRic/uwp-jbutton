@@ -1,6 +1,6 @@
 package javaswingdev.uwp;
 
-// Original: uwp-jbutton https://github.com/DJ-Raven/uwp-jbutton (DJ-Raben)
+// Original: uwp-jbutton https://github.com/DJ-Raven/uwp-jbutton (DJ-Raven)
 // Changed 03.2025: Ric Zonta
 // Problem with the Library TimingFramework-0.55.jar
 // When starting a process with processbuilder and waiting for the termination of the forked process (.waitfor()), the timers go berserk and create a high CPU-procentage
